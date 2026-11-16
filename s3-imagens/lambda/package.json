@@ -1,0 +1,10 @@
+{
+  "name": "processar-imagem",
+  "version": "1.0.0",
+  "description": "Lambda que gera miniatura em escala de cinza de imagens enviadas ao S3",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "jimp": "^0.22.12"
+  }
+}

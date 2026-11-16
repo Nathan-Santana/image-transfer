@@ -1,0 +1,19 @@
+{
+  "name": "s3-imagens",
+  "version": "3.0.0",
+  "description": "Imagens no S3, contas no DynamoDB e processamento com Lambda (LocalStack)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "deploy-lambda": "node scripts/deploy-lambda.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-lambda": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "adm-zip": "^0.5.14",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

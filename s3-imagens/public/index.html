@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Imagens no S3 (LocalStack)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #f4f5f7; margin: 0; color: #222; }
+    main { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+    h1 { margin: 0 0 4px; }
+    .sub { color: #666; margin: 0 0 24px; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 24px; }
+    .topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    form.upload { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    input[type=file] { flex: 1; min-width: 220px; }
+    button, .btn { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px;
+                   cursor: pointer; text-decoration: none; font-size: 14px; display: inline-block; }
+    button:hover, .btn:hover { background: #1d4ed8; }
+    button:disabled { background: #93c5fd; cursor: wait; }
+    .btn-sec { background: #e5e7eb; color: #222; }
+    .btn-sec:hover { background: #d1d5db; }
+    .btn-del { background: #dc2626; }
+    .btn-del:hover { background: #b91c1c; }
+    .msg { padding: 10px 14px; border-radius: 6px; margin-top: 12px; display: none; }
+    .msg.ok { background: #dcfce7; color: #166534; display: block; }
+    .msg.erro { background: #fee2e2; color: #991b1b; display: block; }
+
+    /* autenticação */
+    .auth { max-width: 380px; margin: 40px auto; }
+    .abas { display: flex; margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
+    .aba { flex: 1; background: none; color: #666; border-radius: 0; border-bottom: 2px solid transparent; padding: 10px; }
+    .aba:hover { background: none; color: #222; }
+    .aba.ativa { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+    .auth form { display: flex; flex-direction: column; gap: 12px; }
+    .auth label { font-size: 13px; color: #444; display: flex; flex-direction: column; gap: 4px; }
+    .auth input { padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+    .auth button[type=submit] { padding: 10px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .item { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .item img { width: 100%; height: 150px; object-fit: cover; background: #e5e7eb; display: block; }
+    .info { padding: 10px; font-size: 13px; }
+    .nome { font-weight: 600; word-break: break-all; }
+    .meta { color: #777; margin: 4px 0 10px; }
+    .acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+    .fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: #e5e7eb; }
+    .fotos figure { margin: 0; position: relative; }
+    .fotos figcaption { position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,.6); color: #fff;
+                        font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+    .processando { height: 150px; display: flex; align-items: center; justify-content: center;
+                   font-size: 12px; color: #666; background: #f3f4f6; text-align: center; padding: 8px; }
+    .btn-proc { background: #059669; }
+    .btn-proc:hover { background: #047857; }
+    .vazio { color: #777; text-align: center; padding: 40px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <!-- ============ TELA DE LOGIN / CADASTRO ============ -->
+  <section id="tela-auth" hidden>
+    <div class="auth card">
+      <h1 style="text-align:center">📦 Imagens no S3</h1>
+      <p class="sub" style="text-align:center">Entre ou crie sua conta</p>
+      <div class="abas">
+        <button class="aba ativa" data-aba="login">Entrar</button>
+        <button class="aba" data-aba="cadastro">Criar conta</button>
+      </div>
+
+      <form id="form-login">
+        <label>E-mail <input type="email" name="email" required autocomplete="email"></label>
+        <label>Senha <input type="password" name="senha" required autocomplete="current-password"></label>
+        <button type="submit">Entrar</button>
+      </form>
+
+      <form id="form-cadastro" hidden>
+        <label>Nome <input type="text" name="nome" required autocomplete="name"></label>
+        <label>E-mail <input type="email" name="email" required autocomplete="email"></label>
+        <label>Senha <input type="password" name="senha" required minlength="6" autocomplete="new-password"></label>
+        <button type="submit">Criar conta</button>
+      </form>
+      <div id="msg-auth" class="msg"></div>
+    </div>
+  </section>
+
+  <!-- ============ TELA DE IMAGENS (logado) ============ -->
+  <section id="tela-app" hidden>
+    <div class="topo">
+      <div>
+        <h1>📦 Imagens no S3</h1>
+        <p class="sub">Olá, <strong id="nome-usuario"></strong> (<span id="email-usuario"></span>)</p>
+      </div>
+      <button id="sair" class="btn-sec">Sair</button>
+    </div>
+
+    <div class="card">
+      <form id="form-upload" class="upload">
+        <input type="file" name="imagem" accept=".jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff" required>
+        <button type="submit" id="enviar">Enviar imagem</button>
+      </form>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <h2>Imagens armazenadas (<span id="total">0</span>)</h2>
+    <div id="lista" class="grid"></div>
+    <p id="vazio" class="vazio" hidden>Nenhuma imagem enviada ainda.</p>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function mostrar(el, texto, tipo) {
+    el.textContent = texto;
+    el.className = "msg " + tipo;
+  }
+
+  async function api(url, opcoes = {}) {
+    const res = await fetch(url, opcoes);
+    const dados = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const erro = new Error(dados.erro || "Erro inesperado");
+      erro.status = res.status;
+      throw erro;
+    }
+    return dados;
+  }
+
+  const enviarJson = (url, corpo) =>
+    api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+
+  // ---------------- Navegação entre telas ----------------
+  async function iniciar() {
+    try {
+      const usuario = await api("/api/eu");
+      abrirApp(usuario);
+    } catch {
+      abrirAuth();
+    }
+  }
+
+  function abrirAuth() {
+    clearTimeout(timerAtualizar);
+    $("tela-app").hidden = true;
+    $("tela-auth").hidden = false;
+  }
+
+  function abrirApp(usuario) {
+    $("nome-usuario").textContent = usuario.nome;
+    $("email-usuario").textContent = usuario.email;
+    $("tela-auth").hidden = true;
+    $("tela-app").hidden = false;
+    $("msg-auth").className = "msg";
+    carregar();
+  }
+
+  // ---------------- Abas Entrar / Criar conta ----------------
+  document.querySelectorAll(".aba").forEach((aba) => {
+    aba.onclick = () => {
+      document.querySelectorAll(".aba").forEach((a) => a.classList.toggle("ativa", a === aba));
+      $("form-login").hidden = aba.dataset.aba !== "login";
+      $("form-cadastro").hidden = aba.dataset.aba !== "cadastro";
+      $("msg-auth").className = "msg";
+    };
+  });
+
+  // ---------------- Cadastro ----------------
+  $("form-cadastro").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const dados = Object.fromEntries(new FormData(e.target));
+    try {
+      const usuario = await enviarJson("/api/cadastro", dados);
+      e.target.reset();
+      abrirApp(usuario);
+    } catch (err) {
+      mostrar($("msg-auth"), err.message, "erro");
+    }
+  });
+
+  // ---------------- Login ----------------
+  $("form-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const dados = Object.fromEntries(new FormData(e.target));
+    try {
+      const usuario = await enviarJson("/api/login", dados);
+      e.target.reset();
+      abrirApp(usuario);
+    } catch (err) {
+      mostrar($("msg-auth"), err.message, "erro");
+    }
+  });
+
+  // ---------------- Logout ----------------
+  $("sair").onclick = async () => {
+    await enviarJson("/api/logout", {});
+    abrirAuth();
+  };
+
+  // ---------------- Imagens ----------------
+  function formatarTamanho(b) {
+    const u = ["B", "KB", "MB", "GB"];
+    let i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return (i === 0 ? b : b.toFixed(1)) + " " + u[i];
+  }
+
+  const caminho = (chave) => chave.split("/").map(encodeURIComponent).join("/");
+
+  function tratarErro(err) {
+    if (err.status === 401) return abrirAuth(); // sessão expirou
+    mostrar($("msg"), err.message, "erro");
+  }
+
+  async function carregar() {
+    let imagens;
+    try {
+      imagens = await api("/api/imagens");
+    } catch (err) {
+      return tratarErro(err);
+    }
+    const lista = $("lista");
+    $("total").textContent = imagens.length;
+    $("vazio").hidden = imagens.length > 0;
+    lista.innerHTML = "";
+
+    for (const img of imagens) {
+      const div = document.createElement("div");
+      div.className = "item";
+      const c = caminho(img.chave);
+      div.innerHTML = `
+        <div class="fotos">
+          <figure>
+            <img src="/ver/${c}" loading="lazy" alt="">
+            <figcaption>Original</figcaption>
+          </figure>
+          <figure>
+            ${img.processada
+              ? `<img src="/ver-processada/${c}" loading="lazy" alt=""><figcaption>Lambda</figcaption>`
+              : `<div class="processando">⏳ Processando<br>na Lambda...</div>`}
+          </figure>
+        </div>
+        <div class="info">
+          <div class="nome"></div>
+          <div class="meta">
+            ${formatarTamanho(img.tamanho)}${img.processada ? " → " + formatarTamanho(img.tamanhoProcessada) : ""}
+            · ${new Date(img.data).toLocaleString("pt-BR")}
+          </div>
+          <div class="acoes">
+            <a class="btn" href="/download/${c}">Download</a>
+            ${img.processada ? `<a class="btn btn-proc" href="/download-processada/${c}">Download processada</a>` : ""}
+            <button class="btn-del">Excluir</button>
+          </div>
+        </div>`;
+      div.querySelector(".nome").textContent = img.nome;
+      div.querySelector(".btn-del").onclick = () => excluir(img.chave);
+      lista.appendChild(div);
+    }
+
+    // Enquanto alguma imagem não foi processada pela Lambda, atualiza a lista a cada 3 s
+    // (a primeira execução da Lambda no LocalStack pode demorar, pois ele baixa a imagem do runtime)
+    clearTimeout(timerAtualizar);
+    if (imagens.some((i) => !i.processada) && tentativas < 40) {
+      tentativas++;
+      timerAtualizar = setTimeout(carregar, 3000);
+    } else {
+      tentativas = 0;
+    }
+  }
+
+  let timerAtualizar = null;
+  let tentativas = 0;
+
+  async function excluir(chave) {
+    if (!confirm("Excluir esta imagem?")) return;
+    try {
+      await api("/api/imagens/" + caminho(chave), { method: "DELETE" });
+      mostrar($("msg"), "Imagem excluída.", "ok");
+      carregar();
+    } catch (err) {
+      tratarErro(err);
+    }
+  }
+
+  $("form-upload").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("enviar").disabled = true;
+    try {
+      await api("/api/upload", { method: "POST", body: new FormData(e.target) });
+      mostrar($("msg"), "Imagem enviada com sucesso!", "ok");
+      e.target.reset();
+      carregar();
+    } catch (err) {
+      tratarErro(err);
+    } finally {
+      $("enviar").disabled = false;
+    }
+  });
+
+  iniciar();
+</script>
+</body>
+</html>

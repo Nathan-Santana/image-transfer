@@ -1,0 +1,36 @@
+services:
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,dynamodb,lambda,iam,logs,sts
+      # containers das Lambdas entram nesta rede para alcançar o LocalStack
+      - LAMBDA_DOCKER_NETWORK=localstack-net
+    volumes:
+      # o LocalStack precisa do Docker para executar as Lambdas
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "npm install &&
+             (cd lambda && npm install --omit=dev) &&
+             npm run deploy-lambda &&
+             npm start"
+    ports:
+      - "3000:3000"
+    environment:
+      - AWS_ENDPOINT=http://localstack:4566
+      - S3_BUCKET=imagens
+      - S3_BUCKET_PROCESSADO=imagens-processadas
+      - DYNAMO_TABLE=usuarios
+    depends_on:
+      - localstack
+
+networks:
+  default:
+    name: localstack-net
