@@ -1,14 +1,13 @@
 services:
   localstack:
-    image: localstack/localstack
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.14}
     ports:
       - "4566:4566"
     environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
       - SERVICES=s3,dynamodb,lambda,iam,logs,sts
-      # containers das Lambdas entram nesta rede para alcançar o LocalStack
       - LAMBDA_DOCKER_NETWORK=localstack-net
     volumes:
-      # o LocalStack precisa do Docker para executar as Lambdas
       - /var/run/docker.sock:/var/run/docker.sock
 
   app:

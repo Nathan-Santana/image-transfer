@@ -1,0 +1,10 @@
+# dependências (recriadas com npm install)
+node_modules/
+
+# variáveis de ambiente (contém o token do LocalStack)
+.env
+
+# arquivos de log e sistema
+npm-debug.log*
+.DS_Store
+Thumbs.db
